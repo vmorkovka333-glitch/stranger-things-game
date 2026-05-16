@@ -254,6 +254,57 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 // ============================================================
+// 0. CHARACTER ART ASSETS (drop files in the repo to use real art)
+//   - <name>.glb  -> exact 3D model (preferred)
+//   - <name>.png  -> photo cutout billboard (transparent PNG recommended)
+//   If neither file exists, the built-in stylized model is used.
+// ============================================================
+const texLoader = new THREE.TextureLoader();
+let _gltfLoader = null;
+function getGLTFLoader() {
+  if (!_gltfLoader) {
+    _gltfLoader = import('three/addons/loaders/GLTFLoader.js').then(m => new m.GLTFLoader());
+  }
+  return _gltfLoader;
+}
+// Swap a procedural character group's visuals for a real model/photo if present.
+function applyCharacterArt(group, { name, height = 2.0, yOffset = 0 }) {
+  const hideProc = () => group.traverse(o => { if (o.isMesh) o.visible = false; });
+  // 2) Photo cutout billboard (always faces the camera)
+  const tryPhoto = () => texLoader.load(
+    `${name}.png`,
+    tex => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      hideProc();
+      const aspect = (tex.image && tex.image.width / tex.image.height) || 0.6;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, toneMapped: false }));
+      sprite.scale.set(height * aspect, height, 1);
+      sprite.position.y = yOffset + height / 2;
+      group.add(sprite);
+    },
+    undefined,
+    () => {/* 3) no asset files -> keep the stylized built-in model */}
+  );
+  // 1) Prefer a real 3D model; fall back to photo, then to built-in
+  getGLTFLoader().then(loader => loader.load(
+    `${name}.glb`,
+    gltf => {
+      hideProc();
+      const model = gltf.scene;
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const sc = height / (size.y || 1);
+      model.scale.setScalar(sc);
+      model.position.y = yOffset - box.min.y * sc;
+      model.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      group.add(model);
+    },
+    undefined,
+    tryPhoto
+  )).catch(tryPhoto);
+}
+
+// ============================================================
 // 1. CONSTANTS
 // ============================================================
 const WORLD_SIZE = 40;
@@ -857,6 +908,8 @@ function buildElevenModel() {
   }
 
   group.castShadow = true;
+  // Use real art (eleven.glb / eleven.png) if present, else this stylized model
+  applyCharacterArt(group, { name: 'eleven', height: 1.7, yOffset: 0 });
   scene.add(group);
   player.mesh = group;
   player.mesh.position.set(0, 0, 0);
@@ -1087,6 +1140,8 @@ function buildDemogorgon(isBoss = false) {
   }
 
   group.castShadow = true;
+  // Use real art (demogorgon.glb / demogorgon.png) if present, else this model
+  applyCharacterArt(group, { name: 'demogorgon', height: (isBoss ? 3.6 : 2.3), yOffset: 0 });
   return group;
 }
 
