@@ -225,7 +225,6 @@
     <div class="subtitle" id="wave-subtitle">THEY'RE COMING</div>
   </div>
   <div id="combo-display"></div>
-  <div id="crosshair"></div>
 </div>
 
 <div id="start-screen">
@@ -614,22 +613,6 @@ function buildEnvironment() {
     wall.userData.isWall = true;
     scene.add(wall);
     walls.push(wall);
-
-    // Glowing vine lines wrapping the vertical edges
-    const vineMat = new THREE.MeshBasicMaterial({ color: 0xb84dff, toneMapped: false });
-    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx, sz]) => {
-      const vine = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, h, 5), vineMat);
-      vine.position.set(sx * w / 2, 0, sz * d / 2);
-      wall.add(vine);
-    });
-    // Glowing torus vine ring around the wall
-    const torus = new THREE.Mesh(
-      new THREE.TorusGeometry(Math.max(w, d) * 0.62, 0.05, 6, 16),
-      new THREE.MeshBasicMaterial({ color: 0xb84dff, toneMapped: false })
-    );
-    torus.rotation.x = Math.PI / 2;
-    torus.position.y = (Math.random() - 0.3) * h * 0.5;
-    wall.add(torus);
   }
 
   // Spores - bigger, brighter, double as ambient light cues
@@ -766,6 +749,17 @@ function buildElevenModel() {
     const glint = new THREE.Mesh(new THREE.SphereGeometry(0.006, 5, 5), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
     glint.position.set(s * 0.082 + 0.008, 1.214, 0.23);
     group.add(glint);
+    // Upper eyelash line
+    const lash = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.01, 0.018), new THREE.MeshBasicMaterial({ color: 0x241608 }));
+    lash.position.set(s * 0.082, 1.222, 0.205);
+    lash.rotation.z = s * -0.1;
+    group.add(lash);
+    // Soft cheek blush
+    const blush = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xe88a86, emissive: 0x6a2a28, emissiveIntensity: 0.35, roughness: 0.7, transparent: true, opacity: 0.55 }));
+    blush.position.set(s * 0.115, 1.155, 0.18);
+    blush.scale.set(1.1, 0.7, 0.4);
+    group.add(blush);
   });
 
   // Nose - bridge + tip
@@ -810,12 +804,17 @@ function buildElevenModel() {
     group.add(lock);
   }
 
-  // Smiling mouth
-  const smileMat = new THREE.MeshStandardMaterial({ color: 0xc85a6a, emissive: 0x6a2a33, emissiveIntensity: 0.5, roughness: 0.6 });
-  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.014, 6, 14, Math.PI), smileMat);
-  smile.position.set(0, 1.105, 0.205);
+  // Smiling mouth - fuller lips + bright teeth
+  const smileMat = new THREE.MeshStandardMaterial({ color: 0xcf5f6e, emissive: 0x7a2f3a, emissiveIntensity: 0.55, roughness: 0.5 });
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.019, 8, 18, Math.PI), smileMat);
+  smile.position.set(0, 1.107, 0.205);
   smile.rotation.z = Math.PI;
   group.add(smile);
+  const teeth = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.009, 6, 14, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0xfbf5ec, emissive: 0x665544, emissiveIntensity: 0.3, roughness: 0.4 }));
+  teeth.position.set(0, 1.118, 0.207);
+  teeth.rotation.z = Math.PI;
+  group.add(teeth);
 
   // Arms
   [-1, 1].forEach((side, armIdx) => {
@@ -850,15 +849,6 @@ function buildElevenModel() {
     thigh.userData.legIdx = legIdx;
     group.add(thigh);
   });
-
-  // Bright cyan/purple rim outline accents - read on ANY background
-  const rimAccentMat = new THREE.MeshBasicMaterial({ color: 0x66e0ff, side: THREE.BackSide, toneMapped: false });
-  const bodyRim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.33, 0.74, 8), rimAccentMat);
-  bodyRim.position.y = 0.55;
-  group.add(bodyRim);
-  const headRim = new THREE.Mesh(new THREE.SphereGeometry(0.245, 12, 10), new THREE.MeshBasicMaterial({ color: 0xc066ff, side: THREE.BackSide, toneMapped: false }));
-  headRim.position.y = 1.18;
-  group.add(headRim);
 
   // Psychic aura - layered, gently pulsing always
   const auraInner = new THREE.Mesh(
@@ -920,58 +910,32 @@ function buildElevenModel() {
 // ============================================================
 function buildDemogorgon(isBoss = false) {
   const group = new THREE.Group();
-  const scale = isBoss ? 1.6 : 1.0;
-  const skinMat = new THREE.MeshStandardMaterial({ color: 0x8f8275, emissive: 0x322820, emissiveIntensity: 0.55, roughness: 0.95, metalness: 0 });
+  const scale = isBoss ? 1.95 : 1.18;
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0x6e645a, emissive: 0x261d16, emissiveIntensity: 0.45, roughness: 0.97, metalness: 0 });
   // Shared bioluminescent vein/ridge material - traces the silhouette in red neon
   const veinMat = new THREE.MeshBasicMaterial({ color: 0xff3355, toneMapped: false });
   group.userData.skinMats = [];
   const trackSkin = m => { group.userData.skinMats.push(m); return m; };
 
   // Body - more hunched
-  const bodyGeo = new THREE.CapsuleGeometry(0.38 * scale, 0.7 * scale, 6, 10);
+  const bodyGeo = new THREE.CapsuleGeometry(0.15 * scale, 0.92 * scale, 6, 10);
   const bodyMesh = new THREE.Mesh(bodyGeo, trackSkin(skinMat.clone()));
   bodyMesh.position.y = 0.95 * scale;
   bodyMesh.position.z = 0.1 * scale;
+  bodyMesh.scale.set(1.0, 1.0, 0.82);
   bodyMesh.rotation.x = 0.42;
   group.add(bodyMesh);
 
-  // Glowing dorsal ridge veins down the back
-  for (let i = 0; i < 5; i++) {
-    const ridge = new THREE.Mesh(new THREE.SphereGeometry(0.05 * scale, 5, 5), veinMat);
-    ridge.scale.set(1, 1, 1.8);
-    ridge.position.set(0, (0.7 + i * 0.22) * scale, (-0.28 - i * 0.02) * scale);
-    group.add(ridge);
-  }
-  // Vein lines along the torso front
-  [-1, 1].forEach(s => {
-    const vein = new THREE.Mesh(new THREE.CylinderGeometry(0.018 * scale, 0.018 * scale, 0.9 * scale, 4), veinMat);
-    vein.position.set(s * 0.18 * scale, 1.0 * scale, 0.34 * scale);
-    vein.rotation.x = 0.42;
-    vein.rotation.z = s * 0.12;
-    group.add(vein);
-  });
-
-  // Cranial stalk - small skull behind the flower (no face, just sinew)
-  const headGeo = new THREE.SphereGeometry(0.3 * scale, 12, 10);
+  // Cranial stalk - small smooth skull behind the flower (no face)
+  const headGeo = new THREE.SphereGeometry(0.22 * scale, 12, 10);
   const headMesh = new THREE.Mesh(headGeo, trackSkin(skinMat.clone()));
   headMesh.position.y = 1.78 * scale;
   headMesh.position.z = 0.18 * scale;
   headMesh.scale.set(0.95, 1.05, 1.1);
   group.add(headMesh);
   group.userData.headMesh = headMesh;
-  // Sinewy ridged folds wrapping the skull
-  for (let i = 0; i < 4; i++) {
-    const fold = new THREE.Mesh(
-      new THREE.TorusGeometry((0.17 - i * 0.015) * scale, 0.022 * scale, 5, 12, Math.PI * 1.3),
-      trackSkin(skinMat.clone())
-    );
-    fold.position.set(0, (1.78 + (i - 1.5) * 0.11) * scale, 0.34 * scale);
-    fold.rotation.x = Math.PI / 2;
-    fold.rotation.z = Math.PI / 2;
-    group.add(fold);
-  }
   // Neck sinew connecting skull to torso
-  const dNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * scale, 0.2 * scale, 0.4 * scale, 8), trackSkin(skinMat.clone()));
+  const dNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.048 * scale, 0.075 * scale, 0.46 * scale, 8), trackSkin(skinMat.clone()));
   dNeck.position.set(0, 1.5 * scale, 0.15 * scale);
   dNeck.rotation.x = 0.3;
   group.add(dNeck);
@@ -1054,90 +1018,80 @@ function buildDemogorgon(isBoss = false) {
   throat.position.z = -0.08 * scale;
   petalGroup.add(throat);
   group.userData.throatMesh = throat;
+  // Stringy drool dripping from the maw
+  const droolMat = new THREE.MeshStandardMaterial({ color: 0xb9c97a, emissive: 0x3a4a18, emissiveIntensity: 0.5, transparent: true, opacity: 0.7, roughness: 0.4 });
+  for (let d = 0; d < 4; d++) {
+    const a = (d / 4) * Math.PI * 2 + 0.4;
+    const len = (0.18 + Math.random() * 0.22) * scale;
+    const drip = new THREE.Mesh(new THREE.CylinderGeometry(0.012 * scale, 0.004 * scale, len, 4), droolMat);
+    drip.position.set(Math.cos(a) * 0.13 * scale, -len / 2 - 0.05 * scale, Math.sin(a) * 0.05 * scale + 0.04 * scale);
+    petalGroup.add(drip);
+  }
   group.add(petalGroup);
 
-  // Legs (4 legs: thigh + shin + claw)
-  const legPositions = [
-    { side: -1, front: 1 }, { side: 1, front: 1 },
-    { side: -1, front: -1 }, { side: 1, front: -1 }
-  ];
-  legPositions.forEach(({ side, front }) => {
-    const thighGeo = new THREE.CapsuleGeometry(0.09 * scale, 0.35 * scale, 4, 6);
-    const thigh = new THREE.Mesh(thighGeo, skinMat.clone());
-    thigh.position.set(side * 0.32 * scale, 0.65 * scale, front * 0.28 * scale);
-    thigh.rotation.z = side * 0.35;
-    thigh.rotation.x = front * 0.4;
-    group.add(thigh);
-
-    const shinGeo = new THREE.CapsuleGeometry(0.065 * scale, 0.3 * scale, 4, 6);
-    const shin = new THREE.Mesh(shinGeo, skinMat.clone());
-    shin.position.set(side * 0.46 * scale, 0.28 * scale, front * 0.42 * scale);
-    shin.rotation.z = side * 0.5;
-    shin.rotation.x = front * 0.6;
-    group.add(shin);
-
-    // Claw foot
-    for (let c = 0; c < 3; c++) {
-      const clawAngle = (c - 1) * 0.35;
-      const clawGeo = new THREE.ConeGeometry(0.025 * scale, 0.12 * scale, 4);
-      const clawMesh = new THREE.Mesh(clawGeo, skinMat.clone());
-      clawMesh.position.set(
-        side * 0.56 * scale + Math.sin(clawAngle) * 0.08 * scale,
-        0.06 * scale,
-        front * 0.56 * scale + c * 0.04 * scale
-      );
-      clawMesh.rotation.x = Math.PI / 2 + front * 0.4;
-      group.add(clawMesh);
+  // Nail/claw material - pale and sharp
+  const nailMat = new THREE.MeshStandardMaterial({ color: 0xd9cdbf, emissive: 0x2a2018, emissiveIntensity: 0.35, roughness: 0.6 });
+  // Builds a hand/foot with `n` fingers, each tipped with a pointed nail
+  function buildDigits(parent, n, fingerLen, fingerR, spread, baseY, baseZ, dir) {
+    for (let f = 0; f < n; f++) {
+      const off = (f - (n - 1) / 2) * spread;
+      const finger = new THREE.Mesh(new THREE.CapsuleGeometry(fingerR, fingerLen, 4, 6), skinMat.clone());
+      finger.position.set(off, baseY - dir.y * fingerLen * 0.5, baseZ + dir.z * fingerLen * 0.5);
+      finger.rotation.x = dir.rot;
+      parent.add(finger);
+      const nail = new THREE.Mesh(new THREE.ConeGeometry(fingerR * 1.05, fingerLen * 0.55, 4), nailMat);
+      nail.position.set(off, baseY - dir.y * fingerLen * 1.05, baseZ + dir.z * fingerLen * 1.05);
+      nail.rotation.x = dir.rot + (dir.y > 0 ? Math.PI : 0);
+      parent.add(nail);
     }
-  });
-
-  // Arms with 3-pronged claws - longer, reaching forward menacingly
-  [-1, 1].forEach(side => {
-    const armGeo = new THREE.CapsuleGeometry(0.085 * scale, 0.62 * scale, 4, 8);
-    const armMesh = new THREE.Mesh(armGeo, trackSkin(skinMat.clone()));
-    armMesh.position.set(side * 0.46 * scale, 1.05 * scale, 0.28 * scale);
-    armMesh.rotation.z = side * 0.7;
-    armMesh.rotation.x = -0.7;
-    group.add(armMesh);
-
-    const foreGeo = new THREE.CapsuleGeometry(0.07 * scale, 0.5 * scale, 4, 8);
-    const fore = new THREE.Mesh(foreGeo, trackSkin(skinMat.clone()));
-    fore.position.set(side * 0.66 * scale, 0.66 * scale, 0.62 * scale);
-    fore.rotation.z = side * 0.7;
-    fore.rotation.x = -0.95;
-    group.add(fore);
-    // glowing vein along the forearm
-    const aVein = new THREE.Mesh(new THREE.CylinderGeometry(0.015 * scale, 0.015 * scale, 0.5 * scale, 4), veinMat);
-    aVein.position.copy(fore.position);
-    aVein.rotation.copy(fore.rotation);
-    group.add(aVein);
-
-    // 3-pronged claw
-    for (let c = 0; c < 3; c++) {
-      const cOff = (c - 1) * 0.1 * scale;
-      const clawGeo = new THREE.ConeGeometry(0.028 * scale, 0.15 * scale, 4);
-      const claw = new THREE.Mesh(clawGeo, skinMat.clone());
-      claw.position.set(side * 0.9 * scale + cOff, 0.42 * scale, 0.32 * scale + c * 0.05 * scale);
-      claw.rotation.x = -0.8;
-      claw.rotation.z = side * 0.15;
-      group.add(claw);
-    }
-  });
-
-  // Slime tendrils
-  for (let i = 0; i < 4; i++) {
-    const tGeo = new THREE.CylinderGeometry(0.02 * scale, 0.005 * scale, 0.4 * scale, 4);
-    const tMat = new THREE.MeshStandardMaterial({ color: 0x66cc33, emissive: 0x336611, emissiveIntensity: 0.7, transparent: true, opacity: 0.75 });
-    const tendril = new THREE.Mesh(tGeo, tMat);
-    tendril.position.set(
-      (Math.random() - 0.5) * 0.5 * scale,
-      0.5 * scale,
-      (Math.random() - 0.5) * 0.4 * scale
-    );
-    tendril.rotation.z = (Math.random() - 0.5) * 0.5;
-    tendril.rotation.x = 0.3 + Math.random() * 0.4;
-    group.add(tendril);
   }
+
+  // Two legs (bipedal), each on a hip pivot so it lifts when walking
+  group.userData.legPivots = [];
+  [-1, 1].forEach((side, idx) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.16 * scale, 0.92 * scale, 0.05 * scale);
+    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.05 * scale, 0.5 * scale, 4, 6), skinMat.clone());
+    thigh.position.set(0, -0.28 * scale, 0.02 * scale);
+    pivot.add(thigh);
+    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.038 * scale, 0.46 * scale, 4, 6), skinMat.clone());
+    shin.position.set(0, -0.66 * scale, -0.04 * scale);
+    pivot.add(shin);
+    // Foot pad + 4 toes with nails
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.13 * scale, 0.05 * scale, 0.16 * scale), skinMat.clone());
+    foot.position.set(0, -0.9 * scale, 0.06 * scale);
+    pivot.add(foot);
+    buildDigits(pivot, 4, 0.13 * scale, 0.022 * scale, 0.04 * scale,
+      -0.9 * scale, 0.13 * scale, { y: 0, z: 1, rot: Math.PI / 2 });
+    pivot.userData.legIdx = idx;
+    group.add(pivot);
+    group.userData.legPivots.push(pivot);
+  });
+
+  // Two arms, each ending in a hand with 4 fingers + nails
+  [-1, 1].forEach(side => {
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.04 * scale, 0.66 * scale, 4, 8), skinMat.clone());
+    upper.position.set(side * 0.34 * scale, 1.18 * scale, 0.2 * scale);
+    upper.rotation.z = side * 0.55;
+    upper.rotation.x = -0.6;
+    group.add(upper);
+
+    const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.032 * scale, 0.58 * scale, 4, 8), skinMat.clone());
+    fore.position.set(side * 0.52 * scale, 0.78 * scale, 0.6 * scale);
+    fore.rotation.z = side * 0.5;
+    fore.rotation.x = -1.05;
+    group.add(fore);
+
+    // Hand: small palm + 4 long fingers with nails, splayed forward
+    const hand = new THREE.Group();
+    hand.position.set(side * 0.62 * scale, 0.52 * scale, 0.92 * scale);
+    const palm = new THREE.Mesh(new THREE.SphereGeometry(0.05 * scale, 8, 6), skinMat.clone());
+    palm.scale.set(1, 0.7, 1.1);
+    hand.add(palm);
+    buildDigits(hand, 4, 0.17 * scale, 0.018 * scale, 0.045 * scale,
+      0, 0.05 * scale, { y: 0, z: 1, rot: Math.PI / 2 - 0.2 });
+    group.add(hand);
+  });
 
   group.castShadow = true;
   // Use real art (demogorgon.glb / demogorgon.png) if present, else this model
@@ -1381,6 +1335,25 @@ function addShake(amt) { shakeAmt = Math.min(0.8, shakeAmt + amt); }
 // 8. GAME STATE & WAVES
 // ============================================================
 const walls = [];
+// Block movement through wall boxes (oriented-box vs circle, slide along faces)
+function resolveWallCollision(x, z, r) {
+  for (const wall of walls) {
+    const p = wall.geometry.parameters;
+    const theta = wall.rotation.y;
+    const cos = Math.cos(theta), sin = Math.sin(theta);
+    const dx = x - wall.position.x, dz = z - wall.position.z;
+    let lx = dx * cos + dz * sin;
+    let lz = -dx * sin + dz * cos;
+    const hw = p.width / 2 + r, hd = p.depth / 2 + r;
+    if (Math.abs(lx) < hw && Math.abs(lz) < hd) {
+      if (hw - Math.abs(lx) < hd - Math.abs(lz)) lx = Math.sign(lx || 1) * hw;
+      else lz = Math.sign(lz || 1) * hd;
+      x = wall.position.x + lx * cos - lz * sin;
+      z = wall.position.z + lx * sin + lz * cos;
+    }
+  }
+  return [x, z];
+}
 const spores = [];
 const embers = [];
 const boundaryGlows = [];
@@ -1659,10 +1632,11 @@ function updatePlayer(dt) {
 
   if (moveVec.length() > 0) {
     moveVec.normalize().multiplyScalar(speed * dt);
-    const newX = player.pos.x + moveVec.x;
-    const newZ = player.pos.z + moveVec.z;
-    player.pos.x = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, newX));
-    player.pos.z = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, newZ));
+    let newX = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, player.pos.x + moveVec.x));
+    let newZ = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, player.pos.z + moveVec.z));
+    [newX, newZ] = resolveWallCollision(newX, newZ, 0.35);
+    player.pos.x = newX;
+    player.pos.z = newZ;
 
     // Face movement direction
     if (moveVec.lengthSq() > 0.0001) {
@@ -1768,14 +1742,27 @@ function updateEnemies(dt) {
     const bobY = Math.sin(enemy.walkPhase) * 0.07;
     ePos.y = bobY;
 
+    // Leg-lift stride animation
+    const legPivots = enemy.mesh.userData.legPivots;
+    if (legPivots) {
+      legPivots.forEach(pivot => {
+        const ph = enemy.walkPhase + pivot.userData.legIdx * Math.PI;
+        pivot.rotation.x = Math.sin(ph) * 0.7;
+        pivot.position.y = pivot.userData.baseY ?? (pivot.userData.baseY = pivot.position.y);
+        pivot.position.y += Math.max(0, Math.sin(ph)) * 0.12;
+      });
+    }
+
     // Mouth animation
     const mouthOpen = dist < 8;
     if (mouthOpen) {
-      enemy.mesh.userData.mouthOpen = Math.min(1, enemy.mesh.userData.mouthOpen + dt * 3);
+      enemy.mesh.userData.mouthOpen = Math.min(1, enemy.mesh.userData.mouthOpen + dt * 5);
     } else {
-      enemy.mesh.userData.mouthOpen = Math.max(0, enemy.mesh.userData.mouthOpen - dt * 3);
+      enemy.mesh.userData.mouthOpen = Math.max(0, enemy.mesh.userData.mouthOpen - dt * 4);
     }
-    const mo = enemy.mesh.userData.mouthOpen;
+    // Aggressive snapping chomp once the maw is open
+    const chomp = enemy.mesh.userData.mouthOpen > 0.6 ? Math.abs(Math.sin(enemy.walkPhase * 7)) * 0.45 : 0;
+    const mo = Math.min(1.35, enemy.mesh.userData.mouthOpen + chomp);
     if (enemy.mesh.userData.throatMesh) {
       const th = enemy.mesh.userData.throatMesh;
       const pulse = 1 + Math.sin(enemy.walkPhase * 2) * 0.25;
@@ -1785,7 +1772,7 @@ function updateEnemies(dt) {
     if (enemy.mesh.userData.petalMeshes) {
       enemy.mesh.userData.petalMeshes.forEach((petal, i) => {
         const baseA = petal.userData.baseAngle;
-        petal.rotation.set(mo * -1.8, mo * 0.3 * (i % 2 === 0 ? 1 : -1), baseA * 0.5 * mo);
+        petal.rotation.set(mo * -2.4, mo * 0.35 * (i % 2 === 0 ? 1 : -1), baseA * 0.5 * mo);
       });
     }
 
