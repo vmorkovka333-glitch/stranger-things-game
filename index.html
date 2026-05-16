@@ -622,14 +622,6 @@ function buildEnvironment() {
       vine.position.set(sx * w / 2, 0, sz * d / 2);
       wall.add(vine);
     });
-    // Glowing torus vine ring around the wall
-    const torus = new THREE.Mesh(
-      new THREE.TorusGeometry(Math.max(w, d) * 0.62, 0.05, 6, 16),
-      new THREE.MeshBasicMaterial({ color: 0xb84dff, toneMapped: false })
-    );
-    torus.rotation.x = Math.PI / 2;
-    torus.position.y = (Math.random() - 0.3) * h * 0.5;
-    wall.add(torus);
   }
 
   // Spores - bigger, brighter, double as ambient light cues
@@ -867,15 +859,6 @@ function buildElevenModel() {
     group.add(thigh);
   });
 
-  // Bright cyan/purple rim outline accents - read on ANY background
-  const rimAccentMat = new THREE.MeshBasicMaterial({ color: 0x66e0ff, side: THREE.BackSide, toneMapped: false });
-  const bodyRim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.33, 0.74, 8), rimAccentMat);
-  bodyRim.position.y = 0.55;
-  group.add(bodyRim);
-  const headRim = new THREE.Mesh(new THREE.SphereGeometry(0.245, 12, 10), new THREE.MeshBasicMaterial({ color: 0xc066ff, side: THREE.BackSide, toneMapped: false }));
-  headRim.position.y = 1.18;
-  group.add(headRim);
-
   // Psychic aura - layered, gently pulsing always
   const auraInner = new THREE.Mesh(
     new THREE.SphereGeometry(0.62, 12, 10),
@@ -944,7 +927,7 @@ function buildDemogorgon(isBoss = false) {
   const trackSkin = m => { group.userData.skinMats.push(m); return m; };
 
   // Body - more hunched
-  const bodyGeo = new THREE.CapsuleGeometry(0.23 * scale, 0.88 * scale, 6, 10);
+  const bodyGeo = new THREE.CapsuleGeometry(0.15 * scale, 0.92 * scale, 6, 10);
   const bodyMesh = new THREE.Mesh(bodyGeo, trackSkin(skinMat.clone()));
   bodyMesh.position.y = 0.95 * scale;
   bodyMesh.position.z = 0.1 * scale;
@@ -988,7 +971,7 @@ function buildDemogorgon(isBoss = false) {
     group.add(fold);
   }
   // Neck sinew connecting skull to torso
-  const dNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * scale, 0.12 * scale, 0.44 * scale, 8), trackSkin(skinMat.clone()));
+  const dNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.048 * scale, 0.075 * scale, 0.46 * scale, 8), trackSkin(skinMat.clone()));
   dNeck.position.set(0, 1.5 * scale, 0.15 * scale);
   dNeck.rotation.x = 0.3;
   group.add(dNeck);
@@ -1088,14 +1071,14 @@ function buildDemogorgon(isBoss = false) {
     { side: -1, front: -1 }, { side: 1, front: -1 }
   ];
   legPositions.forEach(({ side, front }) => {
-    const thighGeo = new THREE.CapsuleGeometry(0.055 * scale, 0.42 * scale, 4, 6);
+    const thighGeo = new THREE.CapsuleGeometry(0.035 * scale, 0.46 * scale, 4, 6);
     const thigh = new THREE.Mesh(thighGeo, skinMat.clone());
     thigh.position.set(side * 0.32 * scale, 0.65 * scale, front * 0.28 * scale);
     thigh.rotation.z = side * 0.35;
     thigh.rotation.x = front * 0.4;
     group.add(thigh);
 
-    const shinGeo = new THREE.CapsuleGeometry(0.04 * scale, 0.36 * scale, 4, 6);
+    const shinGeo = new THREE.CapsuleGeometry(0.026 * scale, 0.4 * scale, 4, 6);
     const shin = new THREE.Mesh(shinGeo, skinMat.clone());
     shin.position.set(side * 0.46 * scale, 0.28 * scale, front * 0.42 * scale);
     shin.rotation.z = side * 0.5;
@@ -1119,14 +1102,14 @@ function buildDemogorgon(isBoss = false) {
 
   // Arms with 3-pronged claws - longer, reaching forward menacingly
   [-1, 1].forEach(side => {
-    const armGeo = new THREE.CapsuleGeometry(0.05 * scale, 0.7 * scale, 4, 8);
+    const armGeo = new THREE.CapsuleGeometry(0.032 * scale, 0.74 * scale, 4, 8);
     const armMesh = new THREE.Mesh(armGeo, trackSkin(skinMat.clone()));
     armMesh.position.set(side * 0.46 * scale, 1.05 * scale, 0.28 * scale);
     armMesh.rotation.z = side * 0.7;
     armMesh.rotation.x = -0.7;
     group.add(armMesh);
 
-    const foreGeo = new THREE.CapsuleGeometry(0.042 * scale, 0.56 * scale, 4, 8);
+    const foreGeo = new THREE.CapsuleGeometry(0.027 * scale, 0.6 * scale, 4, 8);
     const fore = new THREE.Mesh(foreGeo, trackSkin(skinMat.clone()));
     fore.position.set(side * 0.66 * scale, 0.66 * scale, 0.62 * scale);
     fore.rotation.z = side * 0.7;
@@ -1407,6 +1390,25 @@ function addShake(amt) { shakeAmt = Math.min(0.8, shakeAmt + amt); }
 // 8. GAME STATE & WAVES
 // ============================================================
 const walls = [];
+// Block movement through wall boxes (oriented-box vs circle, slide along faces)
+function resolveWallCollision(x, z, r) {
+  for (const wall of walls) {
+    const p = wall.geometry.parameters;
+    const theta = wall.rotation.y;
+    const cos = Math.cos(theta), sin = Math.sin(theta);
+    const dx = x - wall.position.x, dz = z - wall.position.z;
+    let lx = dx * cos + dz * sin;
+    let lz = -dx * sin + dz * cos;
+    const hw = p.width / 2 + r, hd = p.depth / 2 + r;
+    if (Math.abs(lx) < hw && Math.abs(lz) < hd) {
+      if (hw - Math.abs(lx) < hd - Math.abs(lz)) lx = Math.sign(lx || 1) * hw;
+      else lz = Math.sign(lz || 1) * hd;
+      x = wall.position.x + lx * cos - lz * sin;
+      z = wall.position.z + lx * sin + lz * cos;
+    }
+  }
+  return [x, z];
+}
 const spores = [];
 const embers = [];
 const boundaryGlows = [];
@@ -1685,10 +1687,11 @@ function updatePlayer(dt) {
 
   if (moveVec.length() > 0) {
     moveVec.normalize().multiplyScalar(speed * dt);
-    const newX = player.pos.x + moveVec.x;
-    const newZ = player.pos.z + moveVec.z;
-    player.pos.x = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, newX));
-    player.pos.z = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, newZ));
+    let newX = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, player.pos.x + moveVec.x));
+    let newZ = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, player.pos.z + moveVec.z));
+    [newX, newZ] = resolveWallCollision(newX, newZ, 0.35);
+    player.pos.x = newX;
+    player.pos.z = newZ;
 
     // Face movement direction
     if (moveVec.lengthSq() > 0.0001) {
