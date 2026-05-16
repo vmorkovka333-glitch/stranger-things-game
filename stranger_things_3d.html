@@ -1006,52 +1006,59 @@ function buildDemogorgon(isBoss = false) {
     activeEnemyLights++;
   }
 
-  // Flower mouth - 6 petals
+  // Flower mouth - 5 fleshy fanged petals (Demogorgon maw)
   const petalGroup = new THREE.Group();
   petalGroup.position.y = 1.78 * scale;
-  petalGroup.position.z = 0.52 * scale;
+  petalGroup.position.z = 0.5 * scale;
   group.userData.petalGroup = petalGroup;
   group.userData.petalMeshes = [];
   group.userData.mouthOpen = 0;
 
+  const petalMat = new THREE.MeshStandardMaterial({
+    color: 0x47201f, emissive: 0xc01f3a, emissiveIntensity: 0.6,
+    roughness: 0.78, side: THREE.DoubleSide
+  });
+  const fangMat = new THREE.MeshStandardMaterial({ color: 0xefe6d6, emissive: 0x4a3a2c, emissiveIntensity: 0.3, roughness: 0.35 });
+
   for (let i = 0; i < 5; i++) {
     const angle = (i / 5) * Math.PI * 2;
     const petal = new THREE.Group();
-    const s = 0.26 * scale;
     const ca = Math.cos(angle), sa = Math.sin(angle);
-    // Curved 4-vertex leaf petal: narrow base, bulged middle, tapered tip
-    const base1 = [ca * 0.06 * scale - sa * 0.05 * scale, sa * 0.06 * scale + ca * 0.05 * scale, 0];
-    const base2 = [ca * 0.06 * scale + sa * 0.05 * scale, sa * 0.06 * scale - ca * 0.05 * scale, 0];
-    const mid1 = [ca * s - sa * 0.13 * scale, sa * s + ca * 0.13 * scale, s * 0.95];
-    const mid2 = [ca * s + sa * 0.13 * scale, sa * s - ca * 0.13 * scale, s * 0.95];
-    const tip = [ca * s * 0.72, sa * s * 0.72, s * 1.7];
+    const L = 0.5 * scale, baseR = 0.06 * scale, spreadR = 0.16 * scale, halfW = 0.17 * scale, cup = 0.12 * scale;
+    // radial (outward in flower plane) and tangential basis
+    const rx = ca, ry = sa, tx = -sa, ty = ca;
+    const NU = 6, NV = 5;
+    const verts = [];
+    const vert = (u, v) => {
+      const w = halfW * Math.sin(Math.PI * Math.pow(u, 0.75)) * (1 - 0.55 * u);
+      const rad = baseR + u * spreadR - Math.sin(Math.PI * u) * (1 - Math.abs(v)) * cup;
+      const fwd = u * L;
+      const x = rx * rad + tx * (v * w);
+      const y = ry * rad + ty * (v * w);
+      return [x, y, fwd];
+    };
+    for (let a = 0; a < NU; a++) {
+      for (let b = 0; b < NV; b++) {
+        const u0 = a / NU, u1 = (a + 1) / NU;
+        const v0 = -1 + 2 * b / NV, v1 = -1 + 2 * (b + 1) / NV;
+        const p00 = vert(u0, v0), p10 = vert(u1, v0), p11 = vert(u1, v1), p01 = vert(u0, v1);
+        verts.push(...p00, ...p10, ...p11, ...p00, ...p11, ...p01);
+      }
+    }
     const petalGeo = new THREE.BufferGeometry();
-    petalGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-      ...base1, ...base2, ...mid2,
-      ...base1, ...mid2, ...mid1,
-      ...mid1, ...mid2, ...tip,
-    ]), 3));
+    petalGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
     petalGeo.computeVertexNormals();
-    const petalMat = new THREE.MeshStandardMaterial({
-      color: 0x5a2422, emissive: 0xff2a55, emissiveIntensity: 0.85,
-      roughness: 0.85, side: THREE.DoubleSide, flatShading: true
-    });
-    const petalSkin = new THREE.Mesh(petalGeo, petalMat);
-    petal.add(petalSkin);
-    // Row of inward-pointing fangs along both edges of the petal
-    const toothMat = new THREE.MeshStandardMaterial({ color: 0xf3ece0, emissive: 0x554433, emissiveIntensity: 0.3, roughness: 0.5 });
-    for (let t = 1; t <= 5; t++) {
-      const f = t / 6;
-      [[base1, mid1, -1], [base2, mid2, 1]].forEach(([b, m]) => {
-        const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.022 * scale, 0.12 * scale, 4), toothMat);
-        tooth.position.set(
-          b[0] + (m[0] - b[0]) * f,
-          b[1] + (m[1] - b[1]) * f,
-          b[2] + (m[2] - b[2]) * f
-        );
-        // point fangs in toward the central maw
-        tooth.lookAt(0, 0, s * 0.4);
-        petal.add(tooth);
+    petal.add(new THREE.Mesh(petalGeo, petalMat));
+    // Curved row of fangs down each edge, longest mid-petal
+    for (let t = 0; t < 6; t++) {
+      const u = 0.12 + t * 0.15;
+      const flen = (0.1 + Math.sin(Math.PI * u) * 0.14) * scale;
+      [-1, 1].forEach(edge => {
+        const [bx, by, bz] = vert(u, edge * 0.92);
+        const fang = new THREE.Mesh(new THREE.ConeGeometry(0.02 * scale, flen, 5), fangMat);
+        fang.position.set(bx, by, bz);
+        fang.lookAt(rx * 0.02, ry * 0.02, bz + 0.35 * scale);
+        petal.add(fang);
       });
     }
     petal.userData.baseAngle = angle;
@@ -1060,26 +1067,46 @@ function buildDemogorgon(isBoss = false) {
     group.userData.petalMeshes.push(petal);
   }
 
-  // Inner mouth glow + pulsing bright throat sphere
-  const innerGeo = new THREE.CircleGeometry(0.14 * scale, 10);
-  const innerMat = new THREE.MeshBasicMaterial({ color: 0xff2a55, toneMapped: false });
-  const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-  innerMesh.position.z = 0.01;
-  petalGroup.add(innerMesh);
-  const throat = new THREE.Mesh(
-    new THREE.SphereGeometry(0.1 * scale, 8, 8),
-    new THREE.MeshBasicMaterial({ color: 0xff4466, toneMapped: false })
+  // Gum ring of fangs around the central maw (visible even half-open)
+  for (let g2 = 0; g2 < 14; g2++) {
+    const a = (g2 / 14) * Math.PI * 2;
+    const rr = 0.09 * scale;
+    const fang = new THREE.Mesh(new THREE.ConeGeometry(0.018 * scale, 0.13 * scale, 5), fangMat);
+    fang.position.set(Math.cos(a) * rr, Math.sin(a) * rr, 0.02 * scale);
+    fang.lookAt(0, 0, 0.5 * scale);
+    petalGroup.add(fang);
+  }
+
+  // Deep wet gullet + pulsing inner glow (throatMesh)
+  const gullet = new THREE.Mesh(
+    new THREE.ConeGeometry(0.11 * scale, 0.34 * scale, 14, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0x2a0810, emissive: 0x6a0a1e, emissiveIntensity: 0.7, roughness: 0.6, side: THREE.DoubleSide })
   );
-  throat.position.z = -0.08 * scale;
+  gullet.position.z = -0.16 * scale;
+  gullet.rotation.x = -Math.PI / 2;
+  petalGroup.add(gullet);
+  const throat = new THREE.Mesh(
+    new THREE.SphereGeometry(0.075 * scale, 10, 10),
+    new THREE.MeshBasicMaterial({ color: 0xff3a55, toneMapped: false })
+  );
+  throat.position.z = -0.12 * scale;
   petalGroup.add(throat);
   group.userData.throatMesh = throat;
-  // Stringy drool dripping from the maw
-  const droolMat = new THREE.MeshStandardMaterial({ color: 0xb9c97a, emissive: 0x3a4a18, emissiveIntensity: 0.5, transparent: true, opacity: 0.7, roughness: 0.4 });
-  for (let d = 0; d < 4; d++) {
-    const a = (d / 4) * Math.PI * 2 + 0.4;
-    const len = (0.18 + Math.random() * 0.22) * scale;
-    const drip = new THREE.Mesh(new THREE.CylinderGeometry(0.012 * scale, 0.004 * scale, len, 4), droolMat);
-    drip.position.set(Math.cos(a) * 0.13 * scale, -len / 2 - 0.05 * scale, Math.sin(a) * 0.05 * scale + 0.04 * scale);
+  // Wet tongue nub
+  const tongue = new THREE.Mesh(
+    new THREE.SphereGeometry(0.05 * scale, 8, 8),
+    new THREE.MeshStandardMaterial({ color: 0x8a2030, emissive: 0x5a1020, emissiveIntensity: 0.6, roughness: 0.3 })
+  );
+  tongue.scale.set(1, 0.6, 1.5);
+  tongue.position.z = -0.02 * scale;
+  petalGroup.add(tongue);
+  // Fine stringy drool
+  const droolMat = new THREE.MeshStandardMaterial({ color: 0xc2cf86, emissive: 0x3a4a18, emissiveIntensity: 0.5, transparent: true, opacity: 0.65, roughness: 0.35 });
+  for (let d = 0; d < 5; d++) {
+    const a = (d / 5) * Math.PI * 2 + 0.3;
+    const len = (0.16 + Math.random() * 0.26) * scale;
+    const drip = new THREE.Mesh(new THREE.CylinderGeometry(0.009 * scale, 0.003 * scale, len, 4), droolMat);
+    drip.position.set(Math.cos(a) * 0.12 * scale, -len / 2 - 0.04 * scale, Math.sin(a) * 0.05 * scale + 0.05 * scale);
     petalGroup.add(drip);
   }
   group.add(petalGroup);
@@ -1789,6 +1816,8 @@ function updateEnemies(dt) {
       ePos.z += dir.z * enemy.speed * dt;
       ePos.x = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, ePos.x));
       ePos.z = Math.max(-WORLD_SIZE + 0.5, Math.min(WORLD_SIZE - 0.5, ePos.z));
+      const eR = enemy.isBoss ? 0.7 : (enemy.type === 'demodog' ? 0.3 : 0.45);
+      [ePos.x, ePos.z] = resolveWallCollision(ePos.x, ePos.z, eR);
       // Face player
       enemy.mesh.rotation.y = Math.atan2(pPos.x - ePos.x, pPos.z - ePos.z);
     }
