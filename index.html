@@ -766,6 +766,17 @@ function buildElevenModel() {
     const glint = new THREE.Mesh(new THREE.SphereGeometry(0.006, 5, 5), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
     glint.position.set(s * 0.082 + 0.008, 1.214, 0.23);
     group.add(glint);
+    // Upper eyelash line
+    const lash = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.01, 0.018), new THREE.MeshBasicMaterial({ color: 0x241608 }));
+    lash.position.set(s * 0.082, 1.222, 0.205);
+    lash.rotation.z = s * -0.1;
+    group.add(lash);
+    // Soft cheek blush
+    const blush = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xe88a86, emissive: 0x6a2a28, emissiveIntensity: 0.35, roughness: 0.7, transparent: true, opacity: 0.55 }));
+    blush.position.set(s * 0.115, 1.155, 0.18);
+    blush.scale.set(1.1, 0.7, 0.4);
+    group.add(blush);
   });
 
   // Nose - bridge + tip
@@ -810,12 +821,17 @@ function buildElevenModel() {
     group.add(lock);
   }
 
-  // Smiling mouth
-  const smileMat = new THREE.MeshStandardMaterial({ color: 0xc85a6a, emissive: 0x6a2a33, emissiveIntensity: 0.5, roughness: 0.6 });
-  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.014, 6, 14, Math.PI), smileMat);
-  smile.position.set(0, 1.105, 0.205);
+  // Smiling mouth - fuller lips + bright teeth
+  const smileMat = new THREE.MeshStandardMaterial({ color: 0xcf5f6e, emissive: 0x7a2f3a, emissiveIntensity: 0.55, roughness: 0.5 });
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.019, 8, 18, Math.PI), smileMat);
+  smile.position.set(0, 1.107, 0.205);
   smile.rotation.z = Math.PI;
   group.add(smile);
+  const teeth = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.009, 6, 14, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0xfbf5ec, emissive: 0x665544, emissiveIntensity: 0.3, roughness: 0.4 }));
+  teeth.position.set(0, 1.118, 0.207);
+  teeth.rotation.z = Math.PI;
+  group.add(teeth);
 
   // Arms
   [-1, 1].forEach((side, armIdx) => {
@@ -920,8 +936,8 @@ function buildElevenModel() {
 // ============================================================
 function buildDemogorgon(isBoss = false) {
   const group = new THREE.Group();
-  const scale = isBoss ? 1.6 : 1.0;
-  const skinMat = new THREE.MeshStandardMaterial({ color: 0x8f8275, emissive: 0x322820, emissiveIntensity: 0.55, roughness: 0.95, metalness: 0 });
+  const scale = isBoss ? 1.95 : 1.18;
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0x6e645a, emissive: 0x261d16, emissiveIntensity: 0.45, roughness: 0.97, metalness: 0 });
   // Shared bioluminescent vein/ridge material - traces the silhouette in red neon
   const veinMat = new THREE.MeshBasicMaterial({ color: 0xff3355, toneMapped: false });
   group.userData.skinMats = [];
@@ -1054,6 +1070,15 @@ function buildDemogorgon(isBoss = false) {
   throat.position.z = -0.08 * scale;
   petalGroup.add(throat);
   group.userData.throatMesh = throat;
+  // Stringy drool dripping from the maw
+  const droolMat = new THREE.MeshStandardMaterial({ color: 0xb9c97a, emissive: 0x3a4a18, emissiveIntensity: 0.5, transparent: true, opacity: 0.7, roughness: 0.4 });
+  for (let d = 0; d < 4; d++) {
+    const a = (d / 4) * Math.PI * 2 + 0.4;
+    const len = (0.18 + Math.random() * 0.22) * scale;
+    const drip = new THREE.Mesh(new THREE.CylinderGeometry(0.012 * scale, 0.004 * scale, len, 4), droolMat);
+    drip.position.set(Math.cos(a) * 0.13 * scale, -len / 2 - 0.05 * scale, Math.sin(a) * 0.05 * scale + 0.04 * scale);
+    petalGroup.add(drip);
+  }
   group.add(petalGroup);
 
   // Legs (4 legs: thigh + shin + claw)
@@ -1771,11 +1796,13 @@ function updateEnemies(dt) {
     // Mouth animation
     const mouthOpen = dist < 8;
     if (mouthOpen) {
-      enemy.mesh.userData.mouthOpen = Math.min(1, enemy.mesh.userData.mouthOpen + dt * 3);
+      enemy.mesh.userData.mouthOpen = Math.min(1, enemy.mesh.userData.mouthOpen + dt * 5);
     } else {
-      enemy.mesh.userData.mouthOpen = Math.max(0, enemy.mesh.userData.mouthOpen - dt * 3);
+      enemy.mesh.userData.mouthOpen = Math.max(0, enemy.mesh.userData.mouthOpen - dt * 4);
     }
-    const mo = enemy.mesh.userData.mouthOpen;
+    // Aggressive snapping chomp once the maw is open
+    const chomp = enemy.mesh.userData.mouthOpen > 0.6 ? Math.abs(Math.sin(enemy.walkPhase * 7)) * 0.45 : 0;
+    const mo = Math.min(1.35, enemy.mesh.userData.mouthOpen + chomp);
     if (enemy.mesh.userData.throatMesh) {
       const th = enemy.mesh.userData.throatMesh;
       const pulse = 1 + Math.sin(enemy.walkPhase * 2) * 0.25;
@@ -1785,7 +1812,7 @@ function updateEnemies(dt) {
     if (enemy.mesh.userData.petalMeshes) {
       enemy.mesh.userData.petalMeshes.forEach((petal, i) => {
         const baseA = petal.userData.baseAngle;
-        petal.rotation.set(mo * -1.8, mo * 0.3 * (i % 2 === 0 ? 1 : -1), baseA * 0.5 * mo);
+        petal.rotation.set(mo * -2.4, mo * 0.35 * (i % 2 === 0 ? 1 : -1), baseA * 0.5 * mo);
       });
     }
 
